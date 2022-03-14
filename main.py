@@ -1,35 +1,62 @@
-GENERAL_DATA_URL = 'https://drive.google.com/file/d/1cUFu_HcarG_QuxBVQqfXWYdF4sTYEo0Q/view?usp=sharing'
-MANAGER_SURVEY_DATA_URL = 'https://drive.google.com/file/d/1ACruOssglzmc0lh7rCcd51yKYPHhHyOS/view?usp=sharing'
-EMPLOYEE_SURVEY_DATA_URL = 'https://drive.google.com/file/d/1OvMGx-8-b6tIAvkpHec7LeR1eh9WyPx8/view?usp=sharing'
-IN_TIME_URL = 'https://drive.google.com/file/d/1GkQwfoUss19US_99RVsFv7De5Vhhq6y2/view?usp=sharing'
-OUT_TIME_URL = 'https://drive.google.com/file/d/1ZVxVB-ytHUjtT5SpGvojD95FPFegCN7r/view?usp=sharing'
-
-
+import numpy as np
 import pandas as pd
-import requests
-import io
+import os
+import math
 
-# data download function
-def import_data_from_GDrive_link(link):
-    # generate download link
-    dwn_url = 'https://drive.google.com/uc?id=' + link.split('/')[-2]
-    response = requests.get(dwn_url)
-    print(response)
-    file_object = io.StringIO(response.content.decode('utf-8'))
-    csv = pd.read_csv(file_object)
-    return csv
-
-def import_all_data():
-    all_merged_data = import_data_from_GDrive_link(GENERAL_DATA_URL)
-    # all_data_url = [MANAGER_SURVEY_DATA_URL, EMPLOYEE_SURVEY_DATA_URL, IN_TIME_URL, OUT_TIME_URL]
-    all_data_url = []
-
-    for url in all_data_url:
-        current_data_set = import_data_from_GDrive_link(url)
-        all_merged_data = pd.merge(all_merged_data, current_data_set, on='EmployeeID')
-
-    return all_merged_data
+from numpy.random import default_rng
+random = default_rng(42) # stabilité du processus d'aléatoir d'une exécution à l'autre
 
 
-data = import_all_data()
-# print(data.head())
+DATA_BASE_URL = 'https://raw.githubusercontent.com/bolex222/Projet_IA/main/data/'
+DATA_FOLDER = "./Data"
+IMAGES_FOLDER = "./resources/images"
+
+FOLDERS = [DATA_FOLDER, IMAGES_FOLDER]
+CSV = ["general_data.csv", "manager_survey_data.csv", "employee_survey_data.csv", "in_time.csv", "out_time.csv"]
+
+def createFolders():
+    for folder in FOLDERS:
+        if not os.path.isdir(folder):
+            os.makedirs(folder)
+
+# createFolders() # Creates all the folders used by our notebook
+
+def loadData():
+    list_dataframe = []
+    for csv in CSV:
+        list_dataframe.append(pd.read_csv(DATA_BASE_URL + csv))
+    return list_dataframe
+
+list_dataframe = loadData()
+
+
+def prepare_dates(df_in, df_out):
+    final_time_df = df_in
+
+    cols = df_in.columns[1:]
+    df_in[cols] = df_in[cols].apply(pd.to_datetime, errors='coerce')
+
+    cols2 = df_out.columns[1:]
+    df_out[cols2] = df_out[cols2].apply(pd.to_datetime, errors='coerce')
+
+    df_in_no_id = df_in[df_in.columns[1:]]
+    df_out_no_id = df_out[df_out.columns[1:]]
+
+    final_time_df[df_in.columns[1:]] = df_out_no_id[df_out.columns[1:]] - df_in_no_id[df_in.columns[1:]]
+
+    means_df = pd.DataFrame({'EmployeeID': final_time_df[final_time_df.columns[0]]})
+    means_df['mean'] = final_time_df[final_time_df.columns[1:]].mean(axis=1)
+    print(means_df)
+
+
+prepare_dates(list_dataframe[3], list_dataframe[4])
+
+
+
+def mergeData(dataframes):
+    final_dataframe = dataframes.pop(0) # Get the first element of the array
+    for dataframe in dataframes:
+        final_dataframe = final_dataframe.merge(dataframe, how="inner", on="EmployeeID", validate="1:1")
+    return final_dataframe
+
+# merged_data = mergeData(list_dataframe)
